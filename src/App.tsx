@@ -46,6 +46,8 @@ import WaterDropIcon from '@mui/icons-material/WaterDrop';
 import CircleIcon from '@mui/icons-material/Circle';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EditIcon from '@mui/icons-material/Edit';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import CloseIcon from '@mui/icons-material/Close';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Token {
@@ -782,6 +784,14 @@ function App() {
     setBorrowedAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
   };
 
+  const [showUtilizationWarning, setShowUtilizationWarning] = useState(true);
+
+  useEffect(() => {
+    if (utilizationRate >= 100) {
+      setShowUtilizationWarning(true);
+    }
+  }, [utilizationRate]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -905,16 +915,16 @@ function App() {
                       sx={{
                         p: 2,
                         borderRadius: 2,
-                        bgcolor: 'rgba(255, 171, 0, 0.12)',
+                        bgcolor: utilizationRate >= 100 ? 'rgba(255, 72, 66, 0.12)' : 'rgba(255, 171, 0, 0.12)',
                         border: '1px solid',
-                        borderColor: 'warning.main',
+                        borderColor: utilizationRate >= 100 ? 'error.light' : 'warning.main',
                         backdropFilter: 'blur(8px)',
                       }}
                     >
                       <Typography 
-                        variant="subtitle1" 
+                        variant="h6" 
                         sx={{ 
-                          color: 'warning.main',
+                          color: utilizationRate >= 100 ? 'error.main' : 'warning.main',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
@@ -922,19 +932,26 @@ function App() {
                           mb: 1
                         }}
                       >
-                        <WarningAmberIcon sx={{ fontSize: 20 }} />
+                        {utilizationRate >= 100 ? (
+                          <ErrorOutlineIcon sx={{ fontSize: 20 }} />
+                        ) : (
+                          <WarningAmberIcon sx={{ fontSize: 20 }} />
+                        )}
                         High Utilization Warning
                       </Typography>
                       <Typography 
                         variant="body2" 
                         sx={{ 
-                          color: 'warning.main',
+                          color: utilizationRate >= 100 ? 'error.main' : 'warning.main',
                           opacity: 0.9,
                           pl: 3.5
                         }}
                       >
-                        Your borrow amount is <strong>{utilizationRate.toFixed(1)}%</strong> of your maximum liquidation threshold. 
-                        Consider reducing your borrowed assets or repay your borrowings to maintain a safe position.
+                        {utilizationRate === Infinity ? (
+                          "You have borrowed assets but no collateral. Add collateral or repay your borrowings to maintain a safe position."
+                        ) : (
+                          `Your borrow amount is ${utilizationRate.toFixed(1)}% of your maximum liquidation threshold. Consider reducing your borrowed assets or repay your borrowings to maintain a safe position.`
+                        )}
                       </Typography>
                     </Box>
                   </motion.div>
@@ -1152,7 +1169,7 @@ function App() {
                       variant="contained"
                       color="error"
                       onClick={addBorrowedAsset}
-                      disabled={!borrow.name}
+                      disabled={!borrow.name || collaterals.length === 0}
                       startIcon={<AddIcon />}
                       sx={{ 
                         height: '56px', 
@@ -1603,199 +1620,31 @@ function App() {
                         transition: 'all 0.3s ease-in-out',
                       }}
                     >
-                      <Box sx={{ mb: 2 }}>
-                        <Typography 
-                          variant="h6" 
-                          sx={{ 
-                            color: 'error.main',
-                            textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
-                            fontWeight: 600,
-                          }}
-                        >
+                      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
                           Borrowed Assets
                         </Typography>
                       </Box>
-                      {borrowedAssets.length > 0 ? (
-                        <TableContainer 
+                      {collaterals.length === 0 ? (
+                        <Box 
                           sx={{ 
-                            maxHeight: 250,
-                            overflowY: 'auto',
-                            width: '100%',
-                            '&::-webkit-scrollbar': {
-                              width: '8px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                              background: 'rgba(145, 158, 171, 0.08)',
-                              borderRadius: '4px',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                              background: 'rgba(145, 158, 171, 0.24)',
-                              borderRadius: '4px',
-                              '&:hover': {
-                                background: 'rgba(145, 158, 171, 0.32)',
-                              },
-                            },
+                            textAlign: 'center', 
+                            py: 3,
+                            color: 'warning.main',
+                            bgcolor: 'warning.lighter',
+                            borderRadius: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1
                           }}
                         >
-                          <Table 
-                            size="small" 
-                            stickyHeader
-                            sx={{
-                              '& .MuiTableCell-root': {
-                                borderColor: 'rgba(145, 158, 171, 0.24)',
-                                px: 2,
-                                '&:first-of-type': {
-                                  pl: 2,
-                                },
-                                '&:last-of-type': {
-                                  pr: 2,
-                                },
-                              },
-                              '& .MuiTableCell-head': {
-                                background: 'rgba(33, 43, 54, 0.8)',
-                                color: 'text.secondary',
-                                fontWeight: 600,
-                                fontSize: '0.75rem',
-                                lineHeight: '1.5',
-                                letterSpacing: '0.5px',
-                                textTransform: 'uppercase',
-                              },
-                              '& .MuiTableBody-root .MuiTableRow-root:hover': {
-                                backgroundColor: 'rgba(145, 158, 171, 0.08)',
-                              },
-                            }}
-                          >
-                            <TableHead>
-                              <TableRow>
-                                <TableCell width="20%">Asset</TableCell>
-                                <TableCell align="right" width="25%">Amount</TableCell>
-                                <TableCell align="right" width="25%">Price ($)</TableCell>
-                                <TableCell align="right" width="20%">Value ($)</TableCell>
-                                <TableCell align="center" width="10%"></TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {borrowedAssets.map((asset) => (
-                                <TableRow 
-                                  key={asset.id}
-                                  sx={{ 
-                                    '& td': {
-                                      py: 1.5,
-                                      fontSize: '0.875rem',
-                                    },
-                                  }}
-                                >
-                                  <Tooltip title="Asset name and symbol" placement="top">
-                                    <TableCell 
-                                      component="th" 
-                                      scope="row"
-                                      sx={{
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        {getCryptoIcon(asset.name)}
-                                        {asset.name}
-                                      </Box>
-                                    </TableCell>
-                                  </Tooltip>
-                                  <Tooltip 
-                                    title={
-                                      remainingBorrowPower > 0 
-                                        ? "Click to edit amount" 
-                                        : "Cannot borrow more due to insufficient collateral"
-                                    } 
-                                    placement="top"
-                                  >
-                                    <TableCell 
-                                      align="right"
-                                      onClick={() => remainingBorrowPower > 0 && handleEditClick(asset.id, 'borrowed')}
-                                      sx={{
-                                        cursor: remainingBorrowPower > 0 ? 'pointer' : 'not-allowed',
-                                        '&:hover': {
-                                          bgcolor: remainingBorrowPower > 0 ? 'action.hover' : 'inherit',
-                                        },
-                                      }}
-                                    >
-                                      {formatNumber(asset.amount)}
-                                    </TableCell>
-                                  </Tooltip>
-                                  <Tooltip title="Click to edit price" placement="top">
-                                    <TableCell 
-                                      align="right"
-                                      onClick={() => handleEditClick(asset.id, 'borrowed')}
-                                      sx={{
-                                        cursor: 'pointer',
-                                        '&:hover': {
-                                          bgcolor: 'action.hover',
-                                        },
-                                      }}
-                                    >
-                                      ${formatNumber(asset.price)}
-                                    </TableCell>
-                                  </Tooltip>
-                                  <Tooltip title="Total borrowed value of this asset" placement="top">
-                                    <TableCell align="right">
-                                      ${formatNumber(asset.amount * asset.price)}
-                                    </TableCell>
-                                  </Tooltip>
-                                  <Tooltip title="Remove this borrowed asset" placement="top">
-                                    <TableCell align="center">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleRemoveBorrowed(asset.id)}
-                                        sx={{
-                                          color: 'error.main',
-                                          '&:hover': {
-                                            backgroundColor: 'rgba(255, 72, 66, 0.08)',
-                                          },
-                                        }}
-                                      >
-                                        <DeleteIcon fontSize="small" />
-                                      </IconButton>
-                                    </TableCell>
-                                  </Tooltip>
-                                </TableRow>
-                              ))}
-                              <TableRow 
-                                sx={{ 
-                                  bgcolor: 'rgba(255, 86, 48, 0.08)',
-                                  '& td': { border: 0 },
-                                }}
-                              >
-                                <TableCell 
-                                  colSpan={3} 
-                                  sx={{ 
-                                    py: 2,
-                                    color: 'text.secondary',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Total Borrowed Value
-                                </TableCell>
-                                <TableCell 
-                                  align="right" 
-                                  sx={{ 
-                                    py: 2,
-                                  }}
-                                >
-                                  <Typography 
-                                    variant="h6" 
-                                    sx={{ 
-                                      color: 'error.main',
-                                      fontWeight: 700,
-                                      textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
-                                    }}
-                                  >
-                                    ${formatNumber(totalBorrow)}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ border: 0 }} />
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      ) : (
+                          <WarningAmberIcon color="warning" />
+                          <Typography variant="body2" color="warning.darker">
+                            Add collateral assets to enable borrowing
+                          </Typography>
+                        </Box>
+                      ) : borrowedAssets.length === 0 ? (
                         <Box 
                           sx={{ 
                             textAlign: 'center', 
@@ -1806,6 +1655,307 @@ function App() {
                           <Typography variant="body2">
                             No borrowed assets added yet
                           </Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ position: 'relative' }}>
+                          {utilizationRate >= 100 && showUtilizationWarning && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: 0,
+                                left 0,
+                                right: 0,
+                                bottom: 0,
+                                zIndex: 2,
+                                p: 3,
+                                bgcolor: 'rgba(255, 72, 66, 0.16)',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 2,
+                                border: '1px solid',
+                                borderColor: 'error.light',
+                                boxShadow: '0 8px 16px rgba(255, 72, 66, 0.16)',
+                                backdropFilter: 'blur(20px)',
+                                WebkitBackdropFilter: 'blur(20px)',
+                                animation: 'slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                '@keyframes slideIn': {
+                                  from: {
+                                    opacity: 0,
+                                    transform: 'translateY(-20px)',
+                                  },
+                                  to: {
+                                    opacity: 1,
+                                    transform: 'translateY(0)',
+                                  },
+                                },
+                              }}
+                            >
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center',
+                                gap: 1.5,
+                              }}>
+                                <ErrorOutlineIcon 
+                                  color="error"
+                                  sx={{ 
+                                    fontSize: 20,
+                                    animation: 'pulse 2s infinite',
+                                    '@keyframes pulse': {
+                                      '0%': {
+                                        transform: 'scale(1)',
+                                        opacity: 1,
+                                      },
+                                      '50%': {
+                                        transform: 'scale(1.1)',
+                                        opacity: 0.8,
+                                      },
+                                      '100%': {
+                                        transform: 'scale(1)',
+                                        opacity: 1,
+                                      },
+                                    },
+                                  }} 
+                                />
+                                <Typography 
+                                  variant="subtitle1"
+                                  sx={{ 
+                                    color: 'error.main',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    fontSize: '1.1rem'
+                                  }}
+                                >
+                                  Maximum Utilization Reached
+                                </Typography>
+                              </Box>
+                              <Typography 
+                                variant="body1" 
+                                color="error.main"
+                                sx={{ 
+                                  opacity: 0.9,
+                                  textAlign: 'center',
+                                  maxWidth: '80%',
+                                  fontSize: '1rem'
+                                }}
+                              >
+                                {utilizationRate === Infinity ? (
+                                  "You have borrowed assets but no collateral. Add collateral or repay your borrowings to maintain a safe position."
+                                ) : (
+                                  "Add more collateral to borrow more"
+                                )}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => setShowUtilizationWarning(false)}
+                                sx={{
+                                  position: 'absolute',
+                                  top: 16,
+                                  right: 16,
+                                  color: 'error.main',
+                                  p: 0.5,
+                                  transition: 'all 0.2s ease',
+                                  '&:hover': {
+                                    bgcolor: 'rgba(255, 72, 66, 0.08)',
+                                    transform: 'rotate(90deg)',
+                                  },
+                                }}
+                              >
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          )}
+                          <TableContainer 
+                            sx={{ 
+                              maxHeight: 250,
+                              overflowY: 'auto',
+                              width: '100%',
+                              filter: utilizationRate >= 100 && showUtilizationWarning ? 'blur(1px)' : 'none',
+                              opacity: utilizationRate >= 100 && showUtilizationWarning ? 0.8 : 1,
+                              transition: 'filter 0.3s ease, opacity 0.3s ease',
+                              pointerEvents: utilizationRate >= 100 && showUtilizationWarning ? 'none' : 'auto',
+                              mt: utilizationRate >= 100 && showUtilizationWarning ? 6 : 0,
+                              '&::-webkit-scrollbar': {
+                                width: '8px',
+                              },
+                              '&::-webkit-scrollbar-track': {
+                                background: 'rgba(145, 158, 171, 0.08)',
+                                borderRadius: '4px',
+                              },
+                              '&::-webkit-scrollbar-thumb': {
+                                background: 'rgba(145, 158, 171, 0.24)',
+                                borderRadius: '4px',
+                                '&:hover': {
+                                  background: 'rgba(145, 158, 171, 0.32)',
+                                },
+                              },
+                            }}
+                          >
+                            <Table 
+                              size="small" 
+                              stickyHeader
+                              sx={{
+                                '& .MuiTableCell-root': {
+                                  borderColor: 'rgba(145, 158, 171, 0.24)',
+                                  px: 2,
+                                  '&:first-of-type': {
+                                    pl: 2,
+                                  },
+                                  '&:last-of-type': {
+                                    pr: 2,
+                                  },
+                                },
+                                '& .MuiTableCell-head': {
+                                  background: 'rgba(33, 43, 54, 0.8)',
+                                  color: 'text.secondary',
+                                  fontWeight: 600,
+                                  fontSize: '0.75rem',
+                                  lineHeight: '1.5',
+                                  letterSpacing: '0.5px',
+                                  textTransform: 'uppercase',
+                                },
+                                '& .MuiTableBody-root .MuiTableRow-root:hover': {
+                                  backgroundColor: 'rgba(145, 158, 171, 0.08)',
+                                },
+                              }}
+                            >
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell width="20%">Asset</TableCell>
+                                  <TableCell align="right" width="25%">Amount</TableCell>
+                                  <TableCell align="right" width="25%">Price ($)</TableCell>
+                                  <TableCell align="right" width="20%">Value ($)</TableCell>
+                                  <TableCell align="center" width="10%"></TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {borrowedAssets.map((asset) => (
+                                  <TableRow 
+                                    key={asset.id}
+                                    sx={{ 
+                                      '& td': {
+                                        py: 1.5,
+                                        fontSize: '0.875rem',
+                                      },
+                                    }}
+                                  >
+                                    <Tooltip title="Asset name and symbol" placement="top">
+                                      <TableCell 
+                                        component="th" 
+                                        scope="row"
+                                        sx={{
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          {getCryptoIcon(asset.name)}
+                                          {asset.name}
+                                        </Box>
+                                      </TableCell>
+                                    </Tooltip>
+                                    <Tooltip 
+                                      title={
+                                        remainingBorrowPower > 0 
+                                          ? "Click to edit amount" 
+                                          : "Cannot borrow more due to insufficient collateral"
+                                      } 
+                                      placement="top"
+                                    >
+                                      <TableCell 
+                                        align="right"
+                                        onClick={() => remainingBorrowPower > 0 && handleEditClick(asset.id, 'borrowed')}
+                                        sx={{
+                                          cursor: remainingBorrowPower > 0 ? 'pointer' : 'not-allowed',
+                                          '&:hover': {
+                                            bgcolor: remainingBorrowPower > 0 ? 'action.hover' : 'inherit',
+                                          },
+                                        }}
+                                      >
+                                        {formatNumber(asset.amount)}
+                                      </TableCell>
+                                    </Tooltip>
+                                    <Tooltip title="Click to edit price" placement="top">
+                                      <TableCell 
+                                        align="right"
+                                        onClick={() => handleEditClick(asset.id, 'borrowed')}
+                                        sx={{
+                                          cursor: 'pointer',
+                                          '&:hover': {
+                                            bgcolor: 'action.hover',
+                                          },
+                                        }}
+                                      >
+                                        ${formatNumber(asset.price)}
+                                      </TableCell>
+                                    </Tooltip>
+                                    <Tooltip title="Total borrowed value of this asset" placement="top">
+                                      <TableCell align="right">
+                                        ${formatNumber(asset.amount * asset.price)}
+                                      </TableCell>
+                                    </Tooltip>
+                                    <Tooltip title="Remove this borrowed asset" placement="top">
+                                      <TableCell align="center">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleRemoveBorrowed(asset.id)}
+                                          sx={{
+                                            color: 'error.main',
+                                            '&:hover': {
+                                              backgroundColor: 'rgba(255, 72, 66, 0.08)',
+                                            },
+                                            pointerEvents: 'auto',
+                                            position: 'relative',
+                                            zIndex: 3,
+                                          }}
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      </TableCell>
+                                    </Tooltip>
+                                  </TableRow>
+                                ))}
+                                <TableRow 
+                                  sx={{ 
+                                    bgcolor: 'rgba(255, 86, 48, 0.08)',
+                                    '& td': { border: 0 },
+                                  }}
+                                >
+                                  <TableCell 
+                                    colSpan={3} 
+                                    sx={{ 
+                                      py: 2,
+                                      color: 'text.secondary',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    Total Borrowed Value
+                                  </TableCell>
+                                  <TableCell 
+                                    align="right" 
+                                    sx={{ 
+                                      py: 2,
+                                    }}
+                                  >
+                                    <Typography 
+                                      variant="h6" 
+                                      sx={{ 
+                                        color: 'error.main',
+                                        fontWeight: 700,
+                                        textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
+                                      }}
+                                    >
+                                      ${formatNumber(totalBorrow)}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell sx={{ border: 0 }} />
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </Box>
                       )}
                     </Paper>
@@ -1859,8 +2009,8 @@ function App() {
                   '& .MuiSvgIcon-root': {
                     filter: 'drop-shadow(0 0 8px #36B37E)',
                   }
-                }
-              }}
+                }}
+              }
               onClick={() => setShowDonationModal(true)}
             >
               <IconButton
