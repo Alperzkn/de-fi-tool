@@ -30,6 +30,9 @@ import {
   Switch,
   Chip,
   Stack,
+  FormControlLabel,
+  Autocomplete,
+  CircularProgress
 } from '@mui/material';
 import { LoadingButton } from '@mui/lab';
 import FeedbackIcon from '@mui/icons-material/Feedback';
@@ -48,6 +51,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EditIcon from '@mui/icons-material/Edit';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CloseIcon from '@mui/icons-material/Close';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Token {
@@ -284,6 +288,29 @@ const walletAddresses = [
   }
 ];
 
+const commonCryptoAssets = [
+  { symbol: 'USDC', name: 'USD Coin' },
+  { symbol: 'USDT', name: 'Tether' },
+  { symbol: 'DAI', name: 'Dai' },
+  { symbol: 'WBTC', name: 'Wrapped Bitcoin' },
+  { symbol: 'WETH', name: 'Wrapped Ethereum' },
+  { symbol: 'BTC', name: 'Bitcoin' },
+  { symbol: 'ETH', name: 'Ethereum' },
+  { symbol: 'SOL', name: 'Solana' },
+  { symbol: 'AVAX', name: 'Avalanche' },
+  { symbol: 'MATIC', name: 'Polygon' },
+  { symbol: 'BNB', name: 'Binance Coin' },
+  { symbol: 'ADA', name: 'Cardano' },
+  { symbol: 'DOT', name: 'Polkadot' },
+  { symbol: 'LINK', name: 'Chainlink' },
+  { symbol: 'UNI', name: 'Uniswap' },
+  { symbol: 'AAVE', name: 'Aave' },
+  { symbol: 'MKR', name: 'Maker' },
+  { symbol: 'CRV', name: 'Curve' },
+  { symbol: 'SNX', name: 'Synthetix' },
+  { symbol: 'COMP', name: 'Compound' },
+];
+
 function App() {
   const [collaterals, setCollaterals] = useState<CollateralAsset[]>(getInitialConfig().collaterals);
   const [borrowedAssets, setBorrowedAssets] = useState<BorrowedAsset[]>(getInitialConfig().borrowedAssets);
@@ -295,6 +322,9 @@ function App() {
     amount: 0,
     included: true,
   });
+  const [allCollateralsIncluded, setAllCollateralsIncluded] = useState(true);
+  const [collateralPriceError, setCollateralPriceError] = useState<string>('');
+  const [isLoadingCollateralPrice, setIsLoadingCollateralPrice] = useState(false);
 
   const handleCollateralEdit = (id: string, field: 'amount' | 'price', value: number) => {
     if (value < 0) return; // Prevent negative values
@@ -846,6 +876,186 @@ function App() {
     }
   };
 
+  const [useLivePrices, setUseLivePrices] = useState(false);
+  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+  const [priceUpdateTimestamp, setPriceUpdateTimestamp] = useState<Date | null>(null);
+  const [priceError, setPriceError] = useState<string | null>(null);
+
+  const fetchLivePrices = async () => {
+    setIsLoadingPrices(true);
+    try {
+      // Get unique tokens from both collateral and borrowed assets
+      const tokens = new Set([
+        ...collaterals.map(asset => asset.name.toLowerCase()),
+        ...borrowedAssets.map(asset => asset.name.toLowerCase())
+      ]);
+
+      // Create comma-separated list of token ids
+      const tokenIds = Array.from(tokens).join(',');
+
+      // Fetch prices from CoinGecko
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd`
+      );
+      const data = await response.json();
+
+      // Update collateral assets prices
+      setCollaterals(prev => prev.map(asset => ({
+        ...asset,
+        price: data[asset.name.toLowerCase()]?.usd || asset.price
+      })));
+
+      // Update borrowed assets prices
+      setBorrowedAssets(prev => prev.map(asset => ({
+        ...asset,
+        price: data[asset.name.toLowerCase()]?.usd || asset.price
+      })));
+
+      setPriceUpdateTimestamp(new Date());
+    } catch (error) {
+      console.error('Error fetching prices:', error);
+      // Show error in UI
+      setSnackbar({
+        open: true,
+        message: 'Failed to fetch live prices. Please try again or use manual prices.',
+        severity: 'error'
+      });
+    } finally {
+      setIsLoadingPrices(false);
+    }
+  };
+
+  useEffect(() => {
+    if (useLivePrices) {
+      fetchLivePrices();
+      // Set up interval to fetch prices every 60 seconds
+      const interval = setInterval(fetchLivePrices, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [useLivePrices]);
+
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const fetchAssetPrice = async (assetSymbol: string) => {
+      try {
+        setIsLoadingPrice(true);
+        setPriceError(null);
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${getCoingeckoId(assetSymbol)}&vs_currencies=usd`);
+        const data = await response.json();
+        const price = data[getCoingeckoId(assetSymbol)]?.usd;
+        if (price) {
+          setBorrow(prev => ({ ...prev, price }));
+        } else {
+          setPriceError("Couldn't fetch price for this asset. Please enter it manually.");
+        }
+      } catch (error) {
+        console.error('Error fetching price:', error);
+        setPriceError("Couldn't fetch price for this asset. Please enter it manually.");
+      } finally {
+        setIsLoadingPrice(false);
+      }
+    };
+
+    if (useLivePrices && borrow.name) {
+      // Reset error when starting new fetch
+      setPriceError(null);
+      // Debounce the API call
+      timeoutId = setTimeout(() => {
+        fetchAssetPrice(borrow.name);
+      }, 500);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [borrow.name, useLivePrices]);
+
+  useEffect(() => {
+    if (!useLivePrices || !newAsset.name) {
+      setCollateralPriceError('');
+      return;
+    }
+
+    const fetchCollateralPrice = async () => {
+      setIsLoadingCollateralPrice(true);
+      try {
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${getCoingeckoId(newAsset.name)}&vs_currencies=usd`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch price');
+        }
+
+        const data = await response.json();
+        const price = data[getCoingeckoId(newAsset.name)]?.usd;
+
+        if (!price) {
+          throw new Error('Price not available');
+        }
+
+        setNewAsset(prev => ({
+          ...prev,
+          price: price
+        }));
+        setCollateralPriceError('');
+      } catch (error) {
+        setCollateralPriceError('Could not fetch price. Please enter manually.');
+        console.error('Error fetching collateral price:', error);
+      } finally {
+        setIsLoadingCollateralPrice(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchCollateralPrice, 500);
+    return () => clearTimeout(timeoutId);
+  }, [newAsset.name, useLivePrices]);
+
+  const getCoingeckoId = (symbol: string): string => {
+    const symbolLower = symbol.toLowerCase();
+    const mapping: { [key: string]: string } = {
+      'btc': 'bitcoin',
+      'eth': 'ethereum',
+      'usdc': 'usd-coin',
+      'usdt': 'tether',
+      'dai': 'dai',
+      'wbtc': 'wrapped-bitcoin',
+      'weth': 'weth',
+      'sol': 'solana',
+      'avax': 'avalanche-2',
+      'matic': 'matic-network',
+      'bnb': 'binancecoin',
+      'ada': 'cardano',
+      'dot': 'polkadot',
+      'link': 'chainlink',
+      'uni': 'uniswap',
+      'aave': 'aave',
+      'mkr': 'maker',
+      'crv': 'curve-dao-token',
+      'snx': 'synthetix-network-token',
+      'comp': 'compound-governance-token'
+    };
+    return mapping[symbolLower] || symbolLower;
+  };
+
+  const handleToggleAllCollaterals = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newIncluded = event.target.checked;
+    setAllCollateralsIncluded(newIncluded);
+    setCollaterals(prevCollaterals =>
+      prevCollaterals.map(collateral => ({
+        ...collateral,
+        included: newIncluded
+      }))
+    );
+  };
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -1013,7 +1223,7 @@ function App() {
               </Grid>
             )}
             {/* Left Side - Configuration Card */}
-            <Grid item xs={12} lg={5}>
+            <Grid item xs={12} lg={4.75}>
               <Paper
                 elevation={3}
                 sx={{
@@ -1039,7 +1249,7 @@ function App() {
                     },
                   }}
                 >
-                  <CardContent>
+                  <CardContent sx={{ p: 3 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                       <Typography 
                         variant="h6"
@@ -1052,31 +1262,74 @@ function App() {
                         Collateral Deposit
                       </Typography>
                     </Box>
-                    <Grid container spacing={2}>
+                    <Grid container spacing={3}>
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
+                          size="small"
                           label="Asset Name"
                           value={newAsset.name}
-                          onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value.toUpperCase() })}
+                          onChange={(e) => setNewAsset({ 
+                            ...newAsset, 
+                            name: e.target.value.toUpperCase(),
+                            price: '',
+                            amount: '' // Clear amount when asset name changes
+                          })}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
+                          size="small"
                           type="number"
                           label="Amount"
                           value={newAsset.amount || ''}
-                          onChange={(e) => setNewAsset({ ...newAsset, amount: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => setNewAsset({ 
+                            ...newAsset, 
+                            amount: parseFloat(e.target.value) || 0 
+                          })}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
+                          size="small"
                           type="number"
                           label="Price ($)"
                           value={newAsset.price || ''}
-                          onChange={(e) => setNewAsset({ ...newAsset, price: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => setNewAsset({ 
+                            ...newAsset, 
+                            price: parseFloat(e.target.value) || 0 
+                          })}
+                          InputProps={{
+                            endAdornment: useLivePrices && isLoadingCollateralPrice && (
+                              <CircularProgress size={20} />
+                            )
+                          }}
+                          error={Boolean(collateralPriceError)}
+                          helperText={collateralPriceError}
+                          disabled={useLivePrices}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
+                            },
+                            '& .MuiFormHelperText-root': {
+                              color: 'warning.main',
+                              mt: 0.5,
+                              fontSize: '0.75rem'
+                            },
+                            opacity: useLivePrices ? 0.7 : 1
+                          }}
                         />
                       </Grid>
                     </Grid>
@@ -1089,7 +1342,7 @@ function App() {
                       startIcon={<AddIcon />}
                       sx={{ 
                         height: '56px', 
-                        mt: 2,
+                        mt: 3,
                         background: 'linear-gradient(45deg, #00A76F 30%, #3BE7B6 90%)',
                         boxShadow: '0 3px 5px 2px rgba(0, 167, 111, .3)',
                         transition: 'all 0.3s ease-in-out',
@@ -1118,7 +1371,7 @@ function App() {
                     },
                   }}
                 >
-                  <CardContent>
+                  <CardContent sx={{ p: 3 }}>
                     <Typography 
                       variant="h6" 
                       gutterBottom
@@ -1131,18 +1384,163 @@ function App() {
                     >
                       Borrowed Assets
                     </Typography>
-                    <Grid container spacing={2}>
+                    <Grid container spacing={3}>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Asset Name"
-                          value={borrow.name}
-                          onChange={(e) => setBorrow({ ...borrow, name: e.target.value.toUpperCase() })}
+                        <Autocomplete
+                          freeSolo
+                          options={commonCryptoAssets}
+                          getOptionLabel={(option) => 
+                            typeof option === 'string' ? option : option.symbol
+                          }
+                          isOptionEqualToValue={(option, value) =>
+                            typeof value === 'string' 
+                              ? option.symbol === value
+                              : option.symbol === value.symbol
+                          }
+                          value={borrow.name ? commonCryptoAssets.find(asset => asset.symbol === borrow.name) || borrow.name : null}
+                          onChange={(event, newValue) => {
+                            setBorrow(prev => ({
+                              ...prev,
+                              name: typeof newValue === 'string' ? 
+                                newValue.toUpperCase() : 
+                                newValue ? newValue.symbol : '',
+                              price: '',
+                              amount: '' // Clear amount when asset changes
+                            }));
+                            setIsDropdownOpen(false);
+                          }}
+                          onInputChange={(event, newInputValue, reason) => {
+                            if (!event) return; // Ignore programmatic changes
+                            if (reason === 'reset') return; // Ignore reset events
+                            
+                            setBorrow(prev => ({
+                              ...prev,
+                              name: newInputValue.toUpperCase(),
+                              price: '',
+                              amount: '' // Clear amount when input changes
+                            }));
+                            setIsDropdownOpen(newInputValue.length > 0);
+                          }}
+                          open={isDropdownOpen}
+                          onOpen={() => {
+                            if (borrow.name) setIsDropdownOpen(true);
+                          }}
+                          onClose={() => setIsDropdownOpen(false)}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Asset"
+                              size="small"
+                              fullWidth
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  height: '40px'
+                                }
+                              }}
+                            />
+                          )}
+                          renderOption={(props, option) => (
+                            <Box 
+                              component="li" 
+                              {...props}
+                              sx={{
+                                '&:hover': {
+                                  backgroundColor: 'rgba(145, 158, 171, 0.08)',
+                                },
+                                '&.Mui-focused': {
+                                  backgroundColor: 'rgba(145, 158, 171, 0.12)',
+                                },
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center',
+                                gap: 1.5,
+                                width: '100%',
+                              }}>
+                                <Box sx={{
+                                  width: 24,
+                                  height: 24,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: '50%',
+                                  backgroundColor: 'rgba(145, 158, 171, 0.08)',
+                                }}>
+                                  {getCryptoIcon(option.symbol)}
+                                </Box>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  flexDirection: 'column',
+                                  flex: 1,
+                                }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {option.symbol}
+                                  </Typography>
+                                  <Typography 
+                                    variant="caption" 
+                                    sx={{ 
+                                      color: 'text.secondary',
+                                      lineHeight: 1
+                                    }}
+                                  >
+                                    {option.name}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          )}
+                          noOptionsText={
+                            <Box sx={{ 
+                              p: 2, 
+                              textAlign: 'center',
+                              color: 'text.secondary'
+                            }}>
+                              <Typography variant="body2">
+                                No matching assets found
+                              </Typography>
+                            </Box>
+                          }
+                          filterOptions={(options, { inputValue }) => {
+                            const inputUpper = inputValue.toUpperCase();
+                            return options.filter(option => 
+                              option.symbol.includes(inputUpper) || 
+                              option.name.toUpperCase().includes(inputUpper)
+                            );
+                          }}
+                          ListboxProps={{
+                            sx: {
+                              '& .MuiAutocomplete-listbox': {
+                                padding: 1,
+                                '& .MuiAutocomplete-option': {
+                                  padding: 1,
+                                  borderRadius: 1,
+                                  margin: '4px 0',
+                                },
+                              },
+                            },
+                          }}
+                          PopperProps={{
+                            sx: {
+                              '& .MuiPaper-root': {
+                                backgroundColor: 'background.paper',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(145, 158, 171, 0.12)',
+                                borderRadius: 1,
+                                boxShadow: '0 8px 16px 0 rgba(0,0,0,0.16)',
+                                mt: 1,
+                              }
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
+                          size="small"
                           type="number"
                           label="Amount"
                           value={borrow.amount || ''}
@@ -1159,15 +1557,38 @@ function App() {
                             max: remainingBorrowPower / (borrow.price || 1),
                             step: 0.0001
                           }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
-                          type="number"
+                          size="small"
                           label="Price ($)"
-                          value={borrow.price || ''}
+                          type="number"
+                          value={borrow.price}
                           onChange={(e) => setBorrow({ ...borrow, price: parseFloat(e.target.value) || 0 })}
+                          InputProps={{
+                            endAdornment: useLivePrices && isLoadingPrice && (
+                              <CircularProgress size={20} />
+                            )
+                          }}
+                          error={Boolean(priceError)}
+                          helperText={priceError}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
+                            },
+                            '& .MuiFormHelperText-root': {
+                              color: 'warning.main',
+                              mt: 0.5,
+                              fontSize: '0.75rem'
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -1245,6 +1666,7 @@ function App() {
                 {/* Risk Multiplier */}
                 <Card 
                   sx={{ 
+                    mb: 3,
                     background: 'rgba(33, 43, 54, 0.6)',
                     backdropFilter: 'blur(8px)',
                     border: '1px solid rgba(145, 158, 171, 0.12)',
@@ -1298,11 +1720,112 @@ function App() {
                     />
                   </CardContent>
                 </Card>
+
+                {/* Price Mode */}
+                <Card 
+                  sx={{ 
+                    background: 'rgba(33, 43, 54, 0.6)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(145, 158, 171, 0.12)',
+                    borderRadius: 2,
+                    transition: 'transform 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'scale(1.01)',
+                    },
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      mb: 2,
+                      pb: 2,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      width: '100%'
+                    }}>
+                      <Tooltip 
+                        title="Toggle to use live prices from CoinGecko API. Prices will update automatically every minute." 
+                        placement="top"
+                        arrow
+                      >
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={useLivePrices}
+                              onChange={(e) => setUseLivePrices(e.target.checked)}
+                              color="primary"
+                              size="small"
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Live Prices
+                              </Typography>
+                              {isLoadingPrices && (
+                                <RefreshIcon 
+                                  fontSize="small" 
+                                  sx={{ 
+                                    color: 'primary.main',
+                                    animation: 'spin 1s linear infinite',
+                                    '@keyframes spin': {
+                                      '0%': { transform: 'rotate(0deg)' },
+                                      '100%': { transform: 'rotate(360deg)' }
+                                    }
+                                  }} 
+                                />
+                              )}
+                              {useLivePrices && priceUpdateTimestamp && !isLoadingPrices && (
+                                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                                  ({priceUpdateTimestamp.toLocaleTimeString()})
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                          sx={{
+                            mr: 0,
+                            '& .MuiFormControlLabel-label': {
+                              display: 'flex',
+                              alignItems: 'center',
+                            }
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Toggle to include/exclude all collateral assets" placement="top" arrow>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={allCollateralsIncluded}
+                              onChange={handleToggleAllCollaterals}
+                              color="primary"
+                              size="small"
+                            />
+                          }
+                          label={
+                            <Typography variant="body2" color="text.secondary">
+                              Include All
+                            </Typography>
+                          }
+                          sx={{
+                            mr: 0,
+                            '& .MuiFormControlLabel-label': {
+                              display: 'flex',
+                              alignItems: 'center',
+                            }
+                          }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  </CardContent>
+                </Card>
               </Paper>
             </Grid>
 
             {/* Right Side - Summary Card */}
-            <Grid item xs={12} lg={7}>
+            <Grid item xs={12} lg={7.25}>
               <Paper
                 elevation={3}
                 sx={{
@@ -1337,7 +1860,7 @@ function App() {
                         <Paper 
                           elevation={2} 
                           sx={{ 
-                            p: 2, 
+                            p: 2.5, 
                             textAlign: 'center',
                             background: 'rgba(33, 43, 54, 0.6)',
                             backdropFilter: 'blur(8px)',
@@ -1370,7 +1893,7 @@ function App() {
                         <Paper 
                           elevation={2} 
                           sx={{ 
-                            p: 2, 
+                            p: 2.5, 
                             textAlign: 'center',
                             background: 'rgba(33, 43, 54, 0.6)',
                             backdropFilter: 'blur(8px)',
@@ -1403,7 +1926,7 @@ function App() {
                         <Paper 
                           elevation={2} 
                           sx={{ 
-                            p: 2, 
+                            p: 2.5, 
                             textAlign: 'center',
                             background: 'rgba(33, 43, 54, 0.6)',
                             backdropFilter: 'blur(8px)',
@@ -1513,7 +2036,16 @@ function App() {
                               <TableRow>
                                 <TableCell width="20%">Asset</TableCell>
                                 <TableCell align="right" width="25%">Amount</TableCell>
-                                <TableCell align="right" width="25%">Price ($)</TableCell>
+                                <TableCell 
+                                  align="right" 
+                                  width="25%" 
+                                  sx={{ 
+                                    whiteSpace: 'nowrap',
+                                    minWidth: '100px'
+                                  }}
+                                >
+                                  Price ($)
+                                </TableCell>
                                 <TableCell align="right" width="20%">Value ($)</TableCell>
                                 <TableCell align="center" width="10%">Include</TableCell>
                                 <TableCell align="center" width="10%"></TableCell>
@@ -1524,10 +2056,7 @@ function App() {
                                 <TableRow 
                                   key={collateral.id}
                                   sx={{ 
-                                    '& td': {
-                                      py: 1.5,
-                                      fontSize: '0.875rem',
-                                    },
+                                    '& td': { border: 0 },
                                   }}
                                 >
                                   <Tooltip title="Asset name and symbol" placement="top">
@@ -1569,7 +2098,24 @@ function App() {
                                         },
                                       }}
                                     >
-                                      ${formatNumber(collateral.price)}
+                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                        ${formatNumber(collateral.price)}
+                                        {useLivePrices && (
+                                          <Tooltip title="Live price">
+                                            <RefreshIcon 
+                                              fontSize="small" 
+                                              sx={{ 
+                                                color: 'success.main',
+                                                animation: isLoadingPrices ? 'spin 1s linear infinite' : 'none',
+                                                '@keyframes spin': {
+                                                  '0%': { transform: 'rotate(0deg)' },
+                                                  '100%': { transform: 'rotate(360deg)' }
+                                                }
+                                              }} 
+                                            />
+                                          </Tooltip>
+                                        )}
+                                      </Box>
                                     </TableCell>
                                   </Tooltip>
                                   <Tooltip title="Total value of this asset" placement="top">
@@ -1731,7 +2277,7 @@ function App() {
                                 gap: 2,
                                 border: '1px solid',
                                 borderColor: 'error.light',
-                                boxShadow: '0 8px 16px rgba(255, 72, 66, 0.16)',
+                                boxShadow: '0 0 20px rgba(255, 72, 66, 0.16)',
                                 backdropFilter: 'blur(20px)',
                                 WebkitBackdropFilter: 'blur(20px)',
                                 animation: 'slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -1881,7 +2427,16 @@ function App() {
                                 <TableRow>
                                   <TableCell width="20%">Asset</TableCell>
                                   <TableCell align="right" width="25%">Amount</TableCell>
-                                  <TableCell align="right" width="25%">Price ($)</TableCell>
+                                  <TableCell 
+                                    align="right" 
+                                    width="25%" 
+                                    sx={{ 
+                                      whiteSpace: 'nowrap',
+                                      minWidth: '100px'
+                                    }}
+                                  >
+                                    Price ($)
+                                  </TableCell>
                                   <TableCell align="right" width="20%">Value ($)</TableCell>
                                   <TableCell align="center" width="10%"></TableCell>
                                 </TableRow>
@@ -1943,7 +2498,24 @@ function App() {
                                           },
                                         }}
                                       >
-                                        ${formatNumber(asset.price)}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                          ${formatNumber(asset.price)}
+                                          {useLivePrices && (
+                                            <Tooltip title="Live price">
+                                              <RefreshIcon 
+                                                fontSize="small" 
+                                                sx={{ 
+                                                  color: 'success.main',
+                                                  animation: isLoadingPrices ? 'spin 1s linear infinite' : 'none',
+                                                  '@keyframes spin': {
+                                                    '0%': { transform: 'rotate(0deg)' },
+                                                    '100%': { transform: 'rotate(360deg)' }
+                                                  }
+                                                }} 
+                                              />
+                                            </Tooltip>
+                                          )}
+                                        </Box>
                                       </TableCell>
                                     </Tooltip>
                                     <Tooltip title="Total borrowed value of this asset" placement="top">
@@ -2320,7 +2892,7 @@ function App() {
                 type="number"
                 value={editingItem?.values.price || ''}
                 onChange={(e) => {
-                  if (!editingItem) return;
+                  if (!editingItem || useLivePrices) return;
                   const value = parseFloat(e.target.value);
                   if (isNaN(value)) return;
                   setEditingItem({
@@ -2331,7 +2903,15 @@ function App() {
                     }
                   });
                 }}
+                disabled={useLivePrices}
                 fullWidth
+                helperText={useLivePrices ? "Price editing is disabled when using live prices" : ""}
+                sx={{
+                  opacity: useLivePrices ? 0.7 : 1,
+                  '& .MuiFormHelperText-root': {
+                    color: 'text.secondary'
+                  }
+                }}
               />
             </Box>
           </DialogContent>
