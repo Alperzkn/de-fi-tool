@@ -2,36 +2,36 @@ import { useState, useEffect } from 'react';
 import {
   ThemeProvider,
   createTheme,
-  CssBaseline, 
-  Box, 
-  Container, 
-  Typography, 
-  Paper, 
-  TextField, 
-  Button, 
-  Slider, 
-  IconButton, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
+  CssBaseline,
+  Container,
+  Grid,
+  Paper,
+  Typography,
+  Box,
+  TextField,
+  Button,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Link,
   Snackbar,
-  Alert, AlertTitle,
-  Grid,
-  Card,
+  Alert,
   CardContent,
+  Card,
+  Slider,
   Switch,
   Chip,
-  Fade
+  Stack,
 } from '@mui/material';
+import { LoadingButton } from '@mui/lab';
 import FeedbackIcon from '@mui/icons-material/Feedback';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -791,6 +791,60 @@ function App() {
       setShowUtilizationWarning(true);
     }
   }, [utilizationRate]);
+
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    email: '',
+    message: '',
+    submitting: false,
+    success: false,
+    error: ''
+  });
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackForm(prev => ({ ...prev, submitting: true, error: '' }));
+
+    try {
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          access_key: 'a90500c0-9f0f-41a7-a436-12f5fad6dc06',
+          email: feedbackForm.email,
+          message: feedbackForm.message,
+          subject: 'New Feedback from DeFi Tool'
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setFeedbackForm(prev => ({ 
+          ...prev, 
+          submitting: false, 
+          success: true,
+          email: '',
+          message: ''
+        }));
+        setTimeout(() => {
+          setShowFeedbackModal(false);
+          setFeedbackForm(prev => ({ ...prev, success: false }));
+        }, 2000);
+      } else {
+        throw new Error(data.message || 'Something went wrong');
+      }
+    } catch (error) {
+      setFeedbackForm(prev => ({ 
+        ...prev, 
+        submitting: false,
+        error: error instanceof Error ? error.message : 'Failed to submit feedback'
+      }));
+    }
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -1968,7 +2022,7 @@ function App() {
         <Box sx={{ position: 'fixed', bottom: 20, right: 20, zIndex: 1000, display: 'flex', gap: 2, alignItems: 'center' }}>
           <Tooltip title="Share your feedback" placement="top">
             <IconButton
-              onClick={() => window.open('https://github.com/yourusername/defi-calculator/issues', '_blank')}
+              onClick={() => setShowFeedbackModal(true)}
               sx={{
                 bgcolor: 'transparent',
                 '&:hover': {
@@ -2046,139 +2100,167 @@ function App() {
             </Box>
           </Tooltip>
         </Box>
-        <Dialog
-          open={showDonationModal}
-          onClose={() => setShowDonationModal(false)}
-          maxWidth="sm"
-          fullWidth
+        <Dialog 
+          open={showFeedbackModal} 
+          onClose={() => !feedbackForm.submitting && setShowFeedbackModal(false)}
           PaperProps={{
             sx: {
               bgcolor: 'background.paper',
-              backgroundImage: 'linear-gradient(to bottom right, rgba(33, 43, 54, 0.9), rgba(33, 43, 54, 0.6))',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(145, 158, 171, 0.12)',
+              backgroundImage: 'none',
+              borderRadius: 2,
+              width: '100%',
+              maxWidth: 500,
+              mx: 2,
+              background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(17, 24, 39, 0.9))',
+              backdropFilter: 'blur(40px)',
+              border: '1px solid',
+              borderColor: 'success.dark',
+              boxShadow: '0 0 20px rgba(54, 179, 126, 0.2)'
             }
           }}
         >
-          <DialogTitle>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1,
-              pb: 2,
-              borderBottom: '1px solid',
-              borderColor: 'divider'
-            }}>
-              <VolunteerActivismIcon 
-                color="error" 
-                sx={{ 
-                  fontSize: 32,
-                  animation: 'pulse 1.5s infinite',
-                  '@keyframes pulse': {
-                    '0%': {
-                      transform: 'scale(1)',
+          <DialogTitle sx={{ 
+            pb: 1,
+            color: 'success.light',
+            fontSize: '1.5rem',
+            fontWeight: 600
+          }}>
+            Share Your Feedback
+          </DialogTitle>
+          <form onSubmit={handleFeedbackSubmit}>
+            <DialogContent sx={{ pb: 2 }}>
+              <Stack spacing={3}>
+                <TextField
+                  label="Email"
+                  type="email"
+                  required
+                  value={feedbackForm.email}
+                  onChange={(e) => setFeedbackForm(prev => ({ ...prev, email: e.target.value }))}
+                  disabled={feedbackForm.submitting}
+                  fullWidth
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: 'rgba(54, 179, 126, 0.3)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(54, 179, 126, 0.5)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: 'success.main',
+                      },
                     },
-                    '50%': {
-                      transform: 'scale(1.2)',
+                    '& .MuiInputLabel-root': {
+                      color: 'success.light',
+                      '&.Mui-focused': {
+                        color: 'success.light',
+                      },
                     },
-                    '100%': {
-                      transform: 'scale(1)',
+                    '& .MuiOutlinedInput-input': {
+                      color: 'common.white',
                     },
+                  }}
+                />
+                <TextField
+                  label="Message"
+                  multiline
+                  rows={4}
+                  required
+                  value={feedbackForm.message}
+                  onChange={(e) => setFeedbackForm(prev => ({ ...prev, message: e.target.value }))}
+                  disabled={feedbackForm.submitting}
+                  fullWidth
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: 'rgba(54, 179, 126, 0.3)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(54, 179, 126, 0.5)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: 'success.main',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'success.light',
+                      '&.Mui-focused': {
+                        color: 'success.light',
+                      },
+                    },
+                    '& .MuiOutlinedInput-input': {
+                      color: 'common.white',
+                    },
+                  }}
+                />
+                {feedbackForm.error && (
+                  <Alert 
+                    severity="error" 
+                    sx={{ 
+                      mt: 2,
+                      bgcolor: 'rgba(255, 72, 66, 0.16)',
+                      color: 'error.light',
+                      '& .MuiAlert-icon': {
+                        color: 'error.light',
+                      },
+                    }}
+                  >
+                    {feedbackForm.error}
+                  </Alert>
+                )}
+                {feedbackForm.success && (
+                  <Alert 
+                    severity="success"
+                    sx={{ 
+                      mt: 2,
+                      bgcolor: 'rgba(54, 179, 126, 0.16)',
+                      color: 'success.light',
+                      '& .MuiAlert-icon': {
+                        color: 'success.light',
+                      },
+                    }}
+                  >
+                    Thank you for your feedback!
+                  </Alert>
+                )}
+              </Stack>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+              <Button
+                onClick={() => !feedbackForm.submitting && setShowFeedbackModal(false)}
+                disabled={feedbackForm.submitting}
+                sx={{
+                  color: 'success.light',
+                  '&:hover': {
+                    bgcolor: 'rgba(54, 179, 126, 0.08)',
                   },
                 }}
-              />
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                Support Development
-              </Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ mt: 2 }}>
-            <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
-              Thank you for considering supporting the development! Your contribution helps maintain and improve this tool.
-              Every donation, no matter the size, makes a difference.
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {walletAddresses.map((wallet) => (
-                <Paper
-                  key={wallet.chain}
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    bgcolor: 'rgba(145, 158, 171, 0.08)',
-                    transition: 'all 0.2s ease-in-out',
-                    '&:hover': {
-                      borderColor: wallet.color,
-                      transform: 'translateY(-2px)',
-                      boxShadow: (theme) => theme.shadows[4],
-                    }
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {getCryptoIcon(wallet.symbol)}
-                    <Typography>
-                      {wallet.chain}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontFamily: 'monospace',
-                        bgcolor: 'background.paper',
-                        p: 1.5,
-                        borderRadius: 1,
-                        flex: 1,
-                        userSelect: 'all',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {truncateAddress(wallet.address)}
-                    </Typography>
-                    <Tooltip title="Copy Address">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleCopyAddress(wallet.address)}
-                        sx={{ 
-                          color: 'text.secondary',
-                          '&:hover': {
-                            color: wallet.color,
-                            transform: 'scale(1.1)',
-                            transition: 'all 0.2s ease-in-out'
-                          }
-                        }}
-                      >
-                        <ContentCopyIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Paper>
-              ))}
-            </Box>
-          </DialogContent>
-          <DialogActions sx={{ p: 3, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Button 
-              onClick={() => setShowDonationModal(false)}
-              variant="outlined"
-              sx={{ 
-                minWidth: 100,
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  transition: 'transform 0.2s ease-in-out'
-                }
-              }}
-            >
-              Close
-            </Button>
-          </DialogActions>
+              >
+                Cancel
+              </Button>
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={feedbackForm.submitting}
+                disabled={!feedbackForm.email || !feedbackForm.message}
+                sx={{
+                  bgcolor: 'success.main',
+                  color: 'common.white',
+                  '&:hover': {
+                    bgcolor: 'success.dark',
+                  },
+                  '&.Mui-disabled': {
+                    bgcolor: 'rgba(54, 179, 126, 0.12)',
+                    color: 'rgba(255, 255, 255, 0.3)',
+                  },
+                }}
+              >
+                Submit
+              </LoadingButton>
+            </DialogActions>
+          </form>
         </Dialog>
 
         {/* Copy Success Notification */}
@@ -2274,6 +2356,153 @@ function App() {
               }}
             >
               Save Changes
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Donation Modal */}
+        <Dialog
+          open={showDonationModal}
+          onClose={() => setShowDonationModal(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              bgcolor: 'background.paper',
+              backgroundImage: 'none',
+              borderRadius: 2,
+              width: '100%',
+              maxWidth: 600,
+              mx: 2,
+              background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(17, 24, 39, 0.9))',
+              backdropFilter: 'blur(40px)',
+              border: '1px solid',
+              borderColor: 'success.dark',
+              boxShadow: '0 0 20px rgba(54, 179, 126, 0.2)'
+            }
+          }}
+        >
+          <DialogTitle>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1,
+              pb: 2,
+              borderBottom: '1px solid',
+              borderColor: 'success.dark'
+            }}>
+              <VolunteerActivismIcon 
+                sx={{ 
+                  fontSize: 32,
+                  color: 'success.light',
+                  animation: 'pulse 1.5s infinite',
+                  '@keyframes pulse': {
+                    '0%': {
+                      transform: 'scale(1)',
+                    },
+                    '50%': {
+                      transform: 'scale(1.2)',
+                    },
+                    '100%': {
+                      transform: 'scale(1)',
+                    },
+                  },
+                }}
+              />
+              <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.light' }}>
+                Support Development
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            <Typography variant="body1" sx={{ mb: 3, color: 'common.white' }}>
+              Thank you for considering supporting the development! Your contribution helps maintain and improve this tool.
+              Every donation, no matter the size, makes a difference.
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {walletAddresses.map((wallet) => (
+                <Paper
+                  key={wallet.chain}
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    border: '1px solid',
+                    borderColor: wallet.color,
+                    bgcolor: `${wallet.color}10`,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      borderColor: wallet.color,
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 0 20px ${wallet.color}40`,
+                      bgcolor: `${wallet.color}20`,
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {getCryptoIcon(wallet.symbol)}
+                    <Typography sx={{ color: wallet.color, fontWeight: 600 }}>
+                      {wallet.chain}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'monospace',
+                        bgcolor: 'rgba(0, 0, 0, 0.2)',
+                        p: 1.5,
+                        borderRadius: 1,
+                        flex: 1,
+                        userSelect: 'all',
+                        border: '1px solid',
+                        borderColor: wallet.color,
+                        color: wallet.color,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {truncateAddress(wallet.address)}
+                    </Typography>
+                    <Tooltip title="Copy Address">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleCopyAddress(wallet.address)}
+                        sx={{ 
+                          color: wallet.color,
+                          '&:hover': {
+                            color: wallet.color,
+                            bgcolor: `${wallet.color}20`,
+                            transform: 'scale(1.1)',
+                            transition: 'all 0.2s ease-in-out'
+                          }
+                        }}
+                      >
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, borderTop: '1px solid', borderColor: 'success.dark' }}>
+            <Button 
+              onClick={() => setShowDonationModal(false)}
+              sx={{ 
+                minWidth: 100,
+                color: 'success.light',
+                '&:hover': {
+                  bgcolor: 'rgba(54, 179, 126, 0.08)',
+                  transform: 'translateY(-2px)',
+                  transition: 'transform 0.2s ease-in-out'
+                }
+              }}
+            >
+              Close
             </Button>
           </DialogActions>
         </Dialog>
