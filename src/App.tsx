@@ -1579,6 +1579,7 @@ function App() {
                           }}
                           error={Boolean(priceError)}
                           helperText={priceError}
+                          disabled={useLivePrices}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               height: '40px'
@@ -1587,7 +1588,8 @@ function App() {
                               color: 'warning.main',
                               mt: 0.5,
                               fontSize: '0.75rem'
-                            }
+                            },
+                            opacity: useLivePrices ? 0.7 : 1
                           }}
                         />
                       </Grid>
