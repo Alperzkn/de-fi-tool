@@ -778,6 +778,10 @@ function App() {
     setEditingItem(null);
   };
 
+  const handleRemoveBorrowed = (id: string) => {
+    setBorrowedAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
