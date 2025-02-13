@@ -52,6 +52,10 @@ import EditIcon from '@mui/icons-material/Edit';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import LocalAtmIcon from '@mui/icons-material/LocalAtm';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Token {
@@ -344,32 +348,26 @@ function App() {
       if (!assetToUpdate) return prevAssets;
 
       const otherAssets = prevAssets.filter(a => a.id !== id);
-      const otherAssetsValue = otherAssets.reduce((sum, asset) => sum + (asset.amount * asset.price), 0);
-      const maxBorrowValue = totalCollateralValue * multiplier - otherAssetsValue;
 
-      if (field === 'price') {
-        const newPrice = value;
-        const maxAmount = maxBorrowValue / newPrice;
-        const newAmount = Math.min(assetToUpdate.amount, maxAmount);
+      if (field === 'amount') {
+        // Only allow decreasing the amount
+        if (value > assetToUpdate.amount) {
+          return prevAssets; // Prevent any increases
+        }
         
         return [
           ...otherAssets,
           {
             ...assetToUpdate,
-            price: newPrice,
-            amount: newAmount
+            amount: value
           }
         ];
-      } else { // field === 'amount'
-        const maxAmount = maxBorrowValue / assetToUpdate.price;
-        // For amount, allow any value up to maxAmount (can be reduced freely)
-        const newAmount = Math.min(value, maxAmount);
-
+      } else { // field === 'price'
         return [
           ...otherAssets,
           {
             ...assetToUpdate,
-            amount: newAmount
+            price: value
           }
         ];
       }
@@ -377,6 +375,14 @@ function App() {
   };
 
   const handleEditStart = (id: string, field: 'amount' | 'price', type: 'collateral' | 'borrowed') => {
+    // Prevent price editing when live prices are enabled
+    if (field === 'price' && useLivePrices) {
+      enqueueSnackbar('Cannot edit price while live prices are enabled', { 
+        variant: 'info',
+        anchorOrigin: { vertical: 'top', horizontal: 'center' }
+      });
+      return;
+    }
     setEditingCell({ id, field, type });
   };
 
@@ -386,28 +392,24 @@ function App() {
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return;
     
-    // Allow any non-negative value for collateral
     if (editingCell.type === 'collateral') {
       if (numValue < 0) return;
       handleCollateralEdit(editingCell.id, editingCell.field, numValue);
     } else {
-      // For borrowed assets, validate against max amount if trying to increase
       const asset = borrowedAssets.find(a => a.id === editingCell.id);
       if (!asset) return;
 
       if (editingCell.field === 'amount') {
-        const currentAmount = asset.amount;
-        const maxAmount = calculateMaxBorrowAmount(editingCell.id, asset.price);
-        
-        // Allow reduction of amount always, but cap increases at maxAmount
-        if (numValue > currentAmount && numValue > maxAmount) {
-          handleBorrowedEdit(editingCell.id, 'amount', maxAmount);
-        } else {
-          handleBorrowedEdit(editingCell.id, 'amount', numValue);
+        // Only allow decreasing amounts
+        if (numValue > asset.amount) {
+          enqueueSnackbar('You can only decrease borrowed amounts', { 
+            variant: 'warning',
+            anchorOrigin: { vertical: 'top', horizontal: 'center' }
+          });
+          return;
         }
-      } else {
-        handleBorrowedEdit(editingCell.id, 'price', numValue);
       }
+      handleBorrowedEdit(editingCell.id, editingCell.field, numValue);
     }
     setEditingCell(null);
   };
@@ -528,12 +530,14 @@ function App() {
           id: Date.now().toString(),
         },
       ]);
-      // Reset the borrow form
+      // Reset all input fields
       setBorrow({
         name: '',
         price: 0,
         amount: 0,
       });
+      // Clear any error messages
+      setPriceError('');
     }
   };
 
@@ -1056,6 +1060,8 @@ function App() {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  const [selectedAsset, setSelectedAsset] = useState<{ symbol: string; name: string } | null>(null);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -1301,36 +1307,67 @@ function App() {
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Price ($)"
-                          value={newAsset.price || ''}
-                          onChange={(e) => setNewAsset({ 
-                            ...newAsset, 
-                            price: parseFloat(e.target.value) || 0 
-                          })}
-                          InputProps={{
-                            endAdornment: useLivePrices && isLoadingCollateralPrice && (
-                              <CircularProgress size={20} />
-                            )
+                        <Tooltip
+                          open={Boolean(useLivePrices && collateralPriceError && newAsset.name)}
+                          title="Couldn't fetch price for this asset. Please enter it manually."
+                          placement="top"
+                          arrow
+                          componentsProps={{
+                            tooltip: {
+                              sx: {
+                                bgcolor: 'background.paper',
+                                boxShadow: (theme) => theme.shadows[2],
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                color: 'error.main',
+                                p: 1,
+                                '& .MuiTooltip-arrow': {
+                                  color: 'background.paper',
+                                  '&::before': {
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                  }
+                                },
+                              }
+                            }
                           }}
-                          error={Boolean(collateralPriceError)}
-                          helperText={collateralPriceError}
-                          disabled={useLivePrices}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px'
-                            },
-                            '& .MuiFormHelperText-root': {
-                              color: 'warning.main',
-                              mt: 0.5,
-                              fontSize: '0.75rem'
-                            },
-                            opacity: useLivePrices ? 0.7 : 1
-                          }}
-                        />
+                        >
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="Price ($)"
+                            placeholder="0.00"
+                            value={newAsset.price || ''}
+                            onChange={(e) => setNewAsset({ 
+                              ...newAsset, 
+                              price: parseFloat(e.target.value) || 0 
+                            })}
+                            InputProps={{
+                              endAdornment: useLivePrices && isLoadingCollateralPrice && (
+                                <CircularProgress size={20} />
+                              )
+                            }}
+                            error={Boolean(collateralPriceError)}
+                            disabled={useLivePrices}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                height: '40px',
+                                '& fieldset': {
+                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                                },
+                                '&:hover fieldset': {
+                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                                },
+                              },
+                              '& .MuiInputLabel-root': {
+                                color: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                              },
+                              opacity: useLivePrices ? 0.7 : 1
+                            }}
+                          />
+                        </Tooltip>
                       </Grid>
                     </Grid>
                     <Button
@@ -1344,11 +1381,11 @@ function App() {
                         height: '56px', 
                         mt: 3,
                         background: 'linear-gradient(45deg, #00A76F 30%, #3BE7B6 90%)',
-                        boxShadow: '0 3px 5px 2px rgba(0, 167, 111, .3)',
+                        boxShadow: '0 3px 5px 2px rgba(0, 167, 111, 0.3)',
                         transition: 'all 0.3s ease-in-out',
                         '&:hover': {
                           transform: 'translateY(-2px)',
-                          boxShadow: '0 6px 10px 4px rgba(0, 167, 111, .3)',
+                          boxShadow: '0 6px 10px 4px rgba(0, 167, 111, 0.3)',
                         },
                       }}
                     >
@@ -1386,153 +1423,22 @@ function App() {
                     </Typography>
                     <Grid container spacing={3}>
                       <Grid item xs={12} sm={4}>
-                        <Autocomplete
-                          freeSolo
-                          options={commonCryptoAssets}
-                          getOptionLabel={(option) => 
-                            typeof option === 'string' ? option : option.symbol
-                          }
-                          isOptionEqualToValue={(option, value) =>
-                            typeof value === 'string' 
-                              ? option.symbol === value
-                              : option.symbol === value.symbol
-                          }
-                          value={borrow.name ? commonCryptoAssets.find(asset => asset.symbol === borrow.name) || borrow.name : null}
-                          onChange={(event, newValue) => {
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Asset"
+                          value={borrow.name}
+                          onChange={(e) => {
                             setBorrow(prev => ({
                               ...prev,
-                              name: typeof newValue === 'string' ? 
-                                newValue.toUpperCase() : 
-                                newValue ? newValue.symbol : '',
-                              price: '',
-                              amount: '' // Clear amount when asset changes
+                              name: e.target.value.toUpperCase(),
+                              price: 0,
+                              amount: 0
                             }));
-                            setIsDropdownOpen(false);
                           }}
-                          onInputChange={(event, newInputValue, reason) => {
-                            if (!event) return; // Ignore programmatic changes
-                            if (reason === 'reset') return; // Ignore reset events
-                            
-                            setBorrow(prev => ({
-                              ...prev,
-                              name: newInputValue.toUpperCase(),
-                              price: '',
-                              amount: '' // Clear amount when input changes
-                            }));
-                            setIsDropdownOpen(newInputValue.length > 0);
-                          }}
-                          open={isDropdownOpen}
-                          onOpen={() => {
-                            if (borrow.name) setIsDropdownOpen(true);
-                          }}
-                          onClose={() => setIsDropdownOpen(false)}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              label="Asset"
-                              size="small"
-                              fullWidth
-                              sx={{
-                                '& .MuiOutlinedInput-root': {
-                                  height: '40px'
-                                }
-                              }}
-                            />
-                          )}
-                          renderOption={(props, option) => (
-                            <Box 
-                              component="li" 
-                              {...props}
-                              sx={{
-                                '&:hover': {
-                                  backgroundColor: 'rgba(145, 158, 171, 0.08)',
-                                },
-                                '&.Mui-focused': {
-                                  backgroundColor: 'rgba(145, 158, 171, 0.12)',
-                                },
-                                padding: '8px 12px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                              }}
-                            >
-                              <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center',
-                                gap: 1.5,
-                                width: '100%',
-                              }}>
-                                <Box sx={{
-                                  width: 24,
-                                  height: 24,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  borderRadius: '50%',
-                                  backgroundColor: 'rgba(145, 158, 171, 0.08)',
-                                }}>
-                                  {getCryptoIcon(option.symbol)}
-                                </Box>
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  flexDirection: 'column',
-                                  flex: 1,
-                                }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {option.symbol}
-                                  </Typography>
-                                  <Typography 
-                                    variant="caption" 
-                                    sx={{ 
-                                      color: 'text.secondary',
-                                      lineHeight: 1
-                                    }}
-                                  >
-                                    {option.name}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </Box>
-                          )}
-                          noOptionsText={
-                            <Box sx={{ 
-                              p: 2, 
-                              textAlign: 'center',
-                              color: 'text.secondary'
-                            }}>
-                              <Typography variant="body2">
-                                No matching assets found
-                              </Typography>
-                            </Box>
-                          }
-                          filterOptions={(options, { inputValue }) => {
-                            const inputUpper = inputValue.toUpperCase();
-                            return options.filter(option => 
-                              option.symbol.includes(inputUpper) || 
-                              option.name.toUpperCase().includes(inputUpper)
-                            );
-                          }}
-                          ListboxProps={{
-                            sx: {
-                              '& .MuiAutocomplete-listbox': {
-                                padding: 1,
-                                '& .MuiAutocomplete-option': {
-                                  padding: 1,
-                                  borderRadius: 1,
-                                  margin: '4px 0',
-                                },
-                              },
-                            },
-                          }}
-                          PopperProps={{
-                            sx: {
-                              '& .MuiPaper-root': {
-                                backgroundColor: 'background.paper',
-                                backdropFilter: 'blur(8px)',
-                                border: '1px solid rgba(145, 158, 171, 0.12)',
-                                borderRadius: 1,
-                                boxShadow: '0 8px 16px 0 rgba(0,0,0,0.16)',
-                                mt: 1,
-                              }
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '40px'
                             }
                           }}
                         />
@@ -1565,33 +1471,64 @@ function App() {
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Price ($)"
-                          type="number"
-                          value={borrow.price}
-                          onChange={(e) => setBorrow({ ...borrow, price: parseFloat(e.target.value) || 0 })}
-                          InputProps={{
-                            endAdornment: useLivePrices && isLoadingPrice && (
-                              <CircularProgress size={20} />
-                            )
+                        <Tooltip
+                          open={Boolean(useLivePrices && priceError && borrow.name)}
+                          title="Couldn't fetch price for this asset. Please enter it manually."
+                          placement="top"
+                          arrow
+                          componentsProps={{
+                            tooltip: {
+                              sx: {
+                                bgcolor: 'background.paper',
+                                boxShadow: (theme) => theme.shadows[2],
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                color: 'error.main',
+                                p: 1,
+                                '& .MuiTooltip-arrow': {
+                                  color: 'background.paper',
+                                  '&::before': {
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                  }
+                                },
+                              }
+                            }
                           }}
-                          error={Boolean(priceError)}
-                          helperText={priceError}
-                          disabled={useLivePrices}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px'
-                            },
-                            '& .MuiFormHelperText-root': {
-                              color: 'warning.main',
-                              mt: 0.5,
-                              fontSize: '0.75rem'
-                            },
-                            opacity: useLivePrices ? 0.7 : 1
-                          }}
-                        />
+                        >
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="Price ($)"
+                            placeholder="0.00"
+                            value={borrow.price || ''}
+                            onChange={(e) => setBorrow({ ...borrow, price: parseFloat(e.target.value) || 0 })}
+                            InputProps={{
+                              endAdornment: useLivePrices && isLoadingPrice && (
+                                <CircularProgress size={20} />
+                              )
+                            }}
+                            error={Boolean(priceError)}
+                            disabled={useLivePrices}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                height: '40px',
+                                '& fieldset': {
+                                  borderColor: useLivePrices && priceError ? 'error.main' : 'inherit',
+                                },
+                                '&:hover fieldset': {
+                                  borderColor: useLivePrices && priceError ? 'error.main' : 'inherit',
+                                },
+                              },
+                              '& .MuiInputLabel-root': {
+                                color: useLivePrices && priceError ? 'error.main' : 'inherit',
+                              },
+                              opacity: useLivePrices ? 0.7 : 1
+                            }}
+                          />
+                        </Tooltip>
                       </Grid>
                       <Grid item xs={12}>
                         <Box sx={{ px: 2, mt: 2 }}>
@@ -1768,7 +1705,7 @@ function App() {
                                 Live Prices
                               </Typography>
                               {isLoadingPrices && (
-                                <RefreshIcon 
+                                <AutorenewIcon 
                                   fontSize="small" 
                                   sx={{ 
                                     color: 'primary.main',
@@ -1843,122 +1780,165 @@ function App() {
                   variant="h5" 
                   gutterBottom
                   sx={{
-                    background: 'linear-gradient(45deg, #00B8D9 30%, #61F3F3 90%)',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    color: 'transparent',
-                    textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-                    fontWeight: 700,
+                    color: 'text.primary',
+                    fontWeight: 600,
                     mb: 4,
                   }}
                 >
                   Position Summary
                 </Typography>
-                <Grid container spacing={3}>
-                  {/* Key Metrics */}
+                <Grid container spacing={3} sx={{ mb: 4 }}>
+                  {/* Equity - Full width */}
                   <Grid item xs={12}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
-                        <Paper 
-                          elevation={2} 
-                          sx={{ 
-                            p: 2.5, 
-                            textAlign: 'center',
-                            background: 'rgba(33, 43, 54, 0.6)',
-                            backdropFilter: 'blur(8px)',
-                            border: '1px solid rgba(145, 158, 171, 0.12)',
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease-in-out',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            height: '100%',
-                          }}
-                        >
-                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                            Total Borrow Value
-                          </Typography>
-                          <Typography 
-                            variant="h5" 
-                            sx={{ 
-                              color: 'error.main',
-                              fontWeight: 700,
-                              textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
-                            }}
-                          >
-                            ${formatNumber(totalBorrow)}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-
-                      <Grid item xs={12} sm={4}>
-                        <Paper 
-                          elevation={2} 
-                          sx={{ 
-                            p: 2.5, 
-                            textAlign: 'center',
-                            background: 'rgba(33, 43, 54, 0.6)',
-                            backdropFilter: 'blur(8px)',
-                            border: '1px solid rgba(145, 158, 171, 0.12)',
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease-in-out',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            height: '100%',
-                          }}
-                        >
-                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                            Equity
-                          </Typography>
-                          <Typography 
-                            variant="h5" 
-                            sx={{ 
-                              color: 'info.main',
-                              fontWeight: 700,
-                              textShadow: '0 0 10px rgba(0, 184, 217, 0.3)',
-                            }}
-                          >
-                            ${formatNumber(equity)}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-
-                      <Grid item xs={12} sm={4}>
-                        <Paper 
-                          elevation={2} 
-                          sx={{ 
-                            p: 2.5, 
-                            textAlign: 'center',
-                            background: 'rgba(33, 43, 54, 0.6)',
-                            backdropFilter: 'blur(8px)',
-                            border: '1px solid rgba(145, 158, 171, 0.12)',
-                            borderRadius: 2,
-                            transition: 'all 0.3s ease-in-out',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            height: '100%',
-                          }}
-                        >
-                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                            Breakeven Price
-                          </Typography>
-                          <Typography 
-                            variant="h5" 
-                            sx={{ 
-                              color: 'secondary.main',
-                              fontWeight: 700,
-                              textShadow: '0 0 10px rgba(142, 51, 255, 0.3)',
-                            }}
-                          >
-                            ${formatNumber(breakevenPrice, 4)}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    </Grid>
+                    <Paper 
+                      elevation={2} 
+                      sx={{ 
+                        p: 2.5, 
+                        textAlign: 'center',
+                        background: 'rgba(33, 43, 54, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(145, 158, 171, 0.12)',
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease-in-out',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        height: '100%',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                        },
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Equity
+                      </Typography>
+                      <Typography 
+                        variant="h4" 
+                        sx={{ 
+                          color: 'info.main',
+                          fontWeight: 700,
+                          textShadow: '0 0 10px rgba(0, 184, 217, 0.3)',
+                        }}
+                      >
+                        ${formatNumber(equity)}
+                      </Typography>
+                    </Paper>
                   </Grid>
 
+                  {/* Three cards in one row */}
+                  <Grid item xs={12} sm={4}>
+                    <Paper 
+                      elevation={2} 
+                      sx={{ 
+                        p: 2.5, 
+                        textAlign: 'center',
+                        background: 'rgba(33, 43, 54, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(145, 158, 171, 0.12)',
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease-in-out',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        height: '100%',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                        },
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Total Collateral Value
+                      </Typography>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          color: 'success.main',
+                          fontWeight: 700,
+                          textShadow: '0 0 10px rgba(0, 167, 111, 0.3)',
+                        }}
+                      >
+                        ${formatNumber(totalCollateralValue)}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Paper 
+                      elevation={2} 
+                      sx={{ 
+                        p: 2.5, 
+                        textAlign: 'center',
+                        background: 'rgba(33, 43, 54, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(145, 158, 171, 0.12)',
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease-in-out',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        height: '100%',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                        },
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Total Borrow Value
+                      </Typography>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          color: 'error.main',
+                          fontWeight: 700,
+                          textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
+                        }}
+                      >
+                        ${formatNumber(totalBorrow)}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Paper 
+                      elevation={2} 
+                      sx={{ 
+                        p: 2.5, 
+                        textAlign: 'center',
+                        background: 'rgba(33, 43, 54, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(145, 158, 171, 0.12)',
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease-in-out',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        height: '100%',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                        },
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Breakeven Price
+                      </Typography>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          color: 'warning.main',
+                          fontWeight: 700,
+                          textShadow: '0 0 10px rgba(255, 171, 0, 0.3)',
+                        }}
+                      >
+                        ${formatNumber(breakevenPrice)}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+                <Grid container spacing={3}>
                   {/* Collateral Assets Table */}
                   <Grid item xs={12} sx={{ mb: 3 }}>
                     <Paper 
@@ -1998,7 +1978,7 @@ function App() {
                               borderRadius: '4px',
                             },
                             '&::-webkit-scrollbar-thumb': {
-                              background: 'rgba(145, 158, 171, 0.24)',
+                              backgroundColor: 'rgba(145, 158, 171, 0.24)',
                               borderRadius: '4px',
                               '&:hover': {
                                 background: 'rgba(145, 158, 171, 0.32)',
@@ -2089,22 +2069,29 @@ function App() {
                                       {formatNumber(collateral.amount)}
                                     </TableCell>
                                   </Tooltip>
-                                  <Tooltip title="Click to edit price" placement="top">
+                                  <Tooltip 
+                                    title={
+                                      useLivePrices 
+                                        ? "Price updates automatically with live market data" 
+                                        : "Click to edit price"
+                                    }
+                                    placement="top"
+                                  >
                                     <TableCell 
                                       align="right"
-                                      onClick={() => handleEditClick(collateral.id, 'collateral')}
+                                      onClick={() => !useLivePrices && handleEditClick(collateral.id, 'collateral')}
                                       sx={{
-                                        cursor: 'pointer',
+                                        cursor: useLivePrices ? 'default' : 'pointer',
                                         '&:hover': {
-                                          bgcolor: 'action.hover',
+                                          bgcolor: useLivePrices ? 'inherit' : 'action.hover',
                                         },
                                       }}
                                     >
                                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                                         ${formatNumber(collateral.price)}
                                         {useLivePrices && (
-                                          <Tooltip title="Live price">
-                                            <RefreshIcon 
+                                          <Tooltip title="Live price updates enabled">
+                                            <AutorenewIcon 
                                               fontSize="small" 
                                               sx={{ 
                                                 color: 'success.main',
@@ -2223,7 +2210,11 @@ function App() {
                       }}
                     >
                       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
+                        <Typography variant="h6" sx={{
+                        color: 'error.main',
+                        textShadow: '0 0 10px rgba(255, 86, 48, 0.3)',
+                        fontWeight: 600,
+                      }}>
                           Borrowed Assets
                         </Typography>
                       </Box>
@@ -2384,17 +2375,13 @@ function App() {
                               '&::-webkit-scrollbar': {
                                 width: '8px',
                               },
-                              '&::-webkit-scrollbar-track': {
-                                background: 'rgba(145, 158, 171, 0.08)',
-                                borderRadius: '4px',
-                              },
                               '&::-webkit-scrollbar-thumb': {
-                                background: 'rgba(145, 158, 171, 0.24)',
+                                backgroundColor: 'rgba(145, 158, 171, 0.24)',
                                 borderRadius: '4px',
-                                '&:hover': {
-                                  background: 'rgba(145, 158, 171, 0.32)',
-                                },
                               },
+                              '&::-webkit-scrollbar-track': {
+                                backgroundColor: 'transparent',
+                              }
                             }}
                           >
                             <Table 
@@ -2470,41 +2457,48 @@ function App() {
                                     </Tooltip>
                                     <Tooltip 
                                       title={
-                                        remainingBorrowPower > 0 
-                                          ? "Click to edit amount" 
-                                          : "Cannot borrow more due to insufficient collateral"
-                                      } 
+                                        asset.amount > 0 
+                                          ? "Double-click to decrease amount" 
+                                          : "Amount cannot be decreased further"
+                                      }
                                       placement="top"
                                     >
                                       <TableCell 
                                         align="right"
-                                        onClick={() => remainingBorrowPower > 0 && handleEditClick(asset.id, 'borrowed')}
+                                        onClick={() => asset.amount > 0 && handleEditClick(asset.id, 'borrowed')}
                                         sx={{
-                                          cursor: remainingBorrowPower > 0 ? 'pointer' : 'not-allowed',
+                                          cursor: asset.amount > 0 ? 'pointer' : 'not-allowed',
                                           '&:hover': {
-                                            bgcolor: remainingBorrowPower > 0 ? 'action.hover' : 'inherit',
+                                            bgcolor: asset.amount > 0 ? 'action.hover' : 'inherit',
                                           },
                                         }}
                                       >
                                         {formatNumber(asset.amount)}
                                       </TableCell>
                                     </Tooltip>
-                                    <Tooltip title="Click to edit price" placement="top">
+                                    <Tooltip 
+                                      title={
+                                        useLivePrices 
+                                          ? "Price updates automatically with live market data" 
+                                          : "Click to edit price"
+                                      }
+                                      placement="top"
+                                    >
                                       <TableCell 
                                         align="right"
-                                        onClick={() => handleEditClick(asset.id, 'borrowed')}
+                                        onClick={() => !useLivePrices && handleEditClick(asset.id, 'borrowed')}
                                         sx={{
-                                          cursor: 'pointer',
+                                          cursor: useLivePrices ? 'default' : 'pointer',
                                           '&:hover': {
-                                            bgcolor: 'action.hover',
+                                            bgcolor: useLivePrices ? 'inherit' : 'action.hover',
                                           },
                                         }}
                                       >
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                                           ${formatNumber(asset.price)}
                                           {useLivePrices && (
-                                            <Tooltip title="Live price">
-                                              <RefreshIcon 
+                                            <Tooltip title="Live price updates enabled">
+                                              <AutorenewIcon 
                                                 fontSize="small" 
                                                 sx={{ 
                                                   color: 'success.main',
