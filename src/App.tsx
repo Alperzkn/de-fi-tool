@@ -113,8 +113,8 @@ const theme = createTheme({
       main: '#dc004e',
     },
     background: {
-      default: '#121212',
-      paper: '#1e1e1e',
+      default: '#161C24',
+      paper: '#212B36',
     },
     error: {
       main: '#f44336',
@@ -144,14 +144,21 @@ const theme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             '& fieldset': {
-              borderColor: 'rgba(255, 255, 255, 0.23)',
+              borderColor: 'divider',
             },
             '&:hover fieldset': {
-              borderColor: 'rgba(255, 255, 255, 0.23)',
+              borderColor: 'primary.main',
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#1976d2',
+              borderColor: 'primary.main',
             },
+            '& input::placeholder': {
+              color: 'rgba(255, 255, 255, 0.5)',
+              opacity: 1,
+            },
+          },
+          '& .MuiInputLabel-root': {
+            color: 'rgba(255, 255, 255, 0.7)',
           },
         },
       },
@@ -1274,6 +1281,7 @@ function App() {
                           fullWidth
                           size="small"
                           label="Asset Name"
+                          placeholder="Enter asset name"
                           value={newAsset.name}
                           onChange={(e) => setNewAsset({ 
                             ...newAsset, 
@@ -1283,7 +1291,20 @@ function App() {
                           })}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              height: '40px'
+                              height: '40px',
+                              '& fieldset': {
+                                borderColor: 'divider',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '& input::placeholder': {
+                                color: 'text.secondary',
+                                opacity: 1
+                              }
                             }
                           }}
                         />
@@ -1294,6 +1315,7 @@ function App() {
                           size="small"
                           type="number"
                           label="Amount"
+                          placeholder="0.00"
                           value={newAsset.amount || ''}
                           onChange={(e) => setNewAsset({ 
                             ...newAsset, 
@@ -1301,7 +1323,20 @@ function App() {
                           })}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              height: '40px'
+                              height: '40px',
+                              '& fieldset': {
+                                borderColor: 'divider',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '& input::placeholder': {
+                                color: 'text.secondary',
+                                opacity: 1
+                              }
                             }
                           }}
                         />
@@ -1355,14 +1390,21 @@ function App() {
                               '& .MuiOutlinedInput-root': {
                                 height: '40px',
                                 '& fieldset': {
-                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'divider'
                                 },
                                 '&:hover fieldset': {
-                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'primary.main'
                                 },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'primary.main'
+                                },
+                                '& input::placeholder': {
+                                  color: 'text.secondary',
+                                  opacity: 1
+                                }
                               },
                               '& .MuiInputLabel-root': {
-                                color: useLivePrices && collateralPriceError ? 'error.main' : 'inherit',
+                                color: useLivePrices && collateralPriceError ? 'error.main' : 'text.secondary'
                               },
                               opacity: useLivePrices ? 0.7 : 1
                             }}
@@ -1438,7 +1480,20 @@ function App() {
                           }}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              height: '40px'
+                              height: '40px',
+                              '& fieldset': {
+                                borderColor: 'divider',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '& input::placeholder': {
+                                color: 'text.secondary',
+                                opacity: 1
+                              }
                             }
                           }}
                         />
@@ -1465,7 +1520,20 @@ function App() {
                           }}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              height: '40px'
+                              height: '40px',
+                              '& fieldset': {
+                                borderColor: 'divider',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                              },
+                              '& input::placeholder': {
+                                color: 'text.secondary',
+                                opacity: 1
+                              }
                             }
                           }}
                         />
@@ -1516,14 +1584,21 @@ function App() {
                               '& .MuiOutlinedInput-root': {
                                 height: '40px',
                                 '& fieldset': {
-                                  borderColor: useLivePrices && priceError ? 'error.main' : 'inherit',
+                                  borderColor: useLivePrices && priceError ? 'error.main' : 'divider'
                                 },
                                 '&:hover fieldset': {
-                                  borderColor: useLivePrices && priceError ? 'error.main' : 'inherit',
+                                  borderColor: useLivePrices && priceError ? 'error.main' : 'primary.main'
                                 },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: useLivePrices && priceError ? 'error.main' : 'primary.main'
+                                },
+                                '& input::placeholder': {
+                                  color: 'text.secondary',
+                                  opacity: 1
+                                }
                               },
                               '& .MuiInputLabel-root': {
-                                color: useLivePrices && priceError ? 'error.main' : 'inherit',
+                                color: useLivePrices && priceError ? 'error.main' : 'text.secondary'
                               },
                               opacity: useLivePrices ? 0.7 : 1
                             }}
@@ -1975,7 +2050,6 @@ function App() {
                             },
                             '&::-webkit-scrollbar-track': {
                               background: 'rgba(145, 158, 171, 0.08)',
-                              borderRadius: '4px',
                             },
                             '&::-webkit-scrollbar-thumb': {
                               backgroundColor: 'rgba(145, 158, 171, 0.24)',
