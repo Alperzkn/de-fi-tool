@@ -1,4 +1,4 @@
-export const formatNumber = (value: number, decimals: number = 2): string => {
+export const formatNumber = (value: number, decimals: number = 3): string => {
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

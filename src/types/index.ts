@@ -1,7 +1,7 @@
 export interface Token {
   name: string;
-  price: number;
   amount: number;
+  price: number;
 }
 
 export interface CollateralAsset extends Token {
@@ -11,6 +11,19 @@ export interface CollateralAsset extends Token {
 
 export interface BorrowedAsset extends Token {
   id: string;
+}
+
+export interface Config {
+  collaterals: CollateralAsset[];
+  borrowedAssets: BorrowedAsset[];
+  borrow: Token;
+  multiplier: number;
+}
+
+export interface PriceData {
+  [key: string]: {
+    usd: number;
+  };
 }
 
 export interface EditingItem {

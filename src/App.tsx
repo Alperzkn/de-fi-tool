@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider } from '@mui/material/styles';
 import {
-  ThemeProvider,
-  createTheme,
   CssBaseline,
   Container,
   Grid,
   Paper,
   Typography,
   Box,
-  TextField,
   Button,
   IconButton,
   Table,
@@ -32,31 +30,41 @@ import {
   Stack,
   FormControlLabel,
   Autocomplete,
-  CircularProgress
+  CircularProgress,
+  TextField
 } from '@mui/material';
-import { LoadingButton } from '@mui/lab';
-import FeedbackIcon from '@mui/icons-material/Feedback';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { Calculate as CalculateIcon } from '@mui/icons-material';
-import { Add as AddIcon } from '@mui/icons-material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
-import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
-import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism';
-import CurrencyBitcoinIcon from '@mui/icons-material/CurrencyBitcoin';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import WaterDropIcon from '@mui/icons-material/WaterDrop';
-import CircleIcon from '@mui/icons-material/Circle';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import EditIcon from '@mui/icons-material/Edit';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import AutorenewIcon from '@mui/icons-material/Autorenew';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import LocalAtmIcon from '@mui/icons-material/LocalAtm';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
+import LoadingButton from '@mui/lab/LoadingButton';
+import {
+  Calculate as CalculateIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  RateReviewOutlined as RateReviewOutlinedIcon,
+  VolunteerActivism as VolunteerActivismIcon,
+  Feedback as FeedbackIcon,
+  Favorite as FavoriteIcon,
+  ContentCopy as ContentCopyIcon,
+  CurrencyBitcoin as CurrencyBitcoinIcon,
+  AccountBalanceWallet as AccountBalanceWalletIcon,
+  WaterDrop as WaterDropIcon,
+  Circle as CircleIcon,
+  WarningAmber as WarningAmberIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorOutlineIcon,
+  Close as CloseIcon,
+  Refresh as RefreshIcon,
+  Autorenew as AutorenewIcon,
+  MonetizationOn as MonetizationOnIcon,
+  LocalAtm as LocalAtmIcon,
+  ShowChart as ShowChartIcon
+} from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
+import { theme } from './theme';
+import { AssetInput } from './components/AssetInput';
+import { AmountInput } from './components/AmountInput';
+import { PriceInput } from './components/PriceInput';
+import { fetchPrices } from './utils/price';
+import { formatNumber } from './utils/formatters';
+import { Token, CollateralAsset, BorrowedAsset, Config } from './types';
 
 interface Token {
   name: string;
@@ -101,90 +109,6 @@ const getInitialConfig = () => {
 
   return defaultConfig;
 };
-
-// Create a dark theme instance
-const theme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-    background: {
-      default: '#161C24',
-      paper: '#212B36',
-    },
-    error: {
-      main: '#f44336',
-    },
-    warning: {
-      main: '#ff9800',
-    },
-    info: {
-      main: '#2196f3',
-    },
-    success: {
-      main: '#4caf50',
-    },
-    text: {
-      primary: '#ffffff',
-      secondary: 'rgba(255, 255, 255, 0.7)',
-      disabled: 'rgba(255, 255, 255, 0.5)',
-    },
-  },
-  components: {
-    MuiTextField: {
-      defaultProps: {
-        variant: 'outlined',
-        size: 'small',
-      },
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            '& fieldset': {
-              borderColor: 'divider',
-            },
-            '&:hover fieldset': {
-              borderColor: 'primary.main',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: 'primary.main',
-            },
-            '& input::placeholder': {
-              color: 'rgba(255, 255, 255, 0.5)',
-              opacity: 1,
-            },
-          },
-          '& .MuiInputLabel-root': {
-            color: 'rgba(255, 255, 255, 0.7)',
-          },
-        },
-      },
-    },
-    MuiButton: {
-      defaultProps: {
-        variant: 'contained',
-      },
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-        },
-      },
-    },
-    MuiPaper: {
-      defaultProps: {
-        elevation: 1,
-      },
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-        },
-      },
-    },
-  },
-});
 
 const getBackgroundColor = (percentage: number): string => {
   if (percentage <= 0.3) return '#00A76F20';
@@ -1277,139 +1201,27 @@ function App() {
                     </Box>
                     <Grid container spacing={3}>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Asset Name"
-                          placeholder="Enter asset name"
+                        <AssetInput
                           value={newAsset.name}
-                          onChange={(e) => setNewAsset({ 
-                            ...newAsset, 
-                            name: e.target.value.toUpperCase(),
-                            price: '',
-                            amount: '' // Clear amount when asset name changes
-                          })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px',
-                              '& fieldset': {
-                                borderColor: 'divider',
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '& input::placeholder': {
-                                color: 'text.secondary',
-                                opacity: 1
-                              }
-                            }
-                          }}
+                          onChange={(value) => setNewAsset(prev => ({ ...prev, name: value }))}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Amount"
-                          placeholder="0.00"
-                          value={newAsset.amount || ''}
-                          onChange={(e) => setNewAsset({ 
-                            ...newAsset, 
-                            amount: parseFloat(e.target.value) || 0 
-                          })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px',
-                              '& fieldset': {
-                                borderColor: 'divider',
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '& input::placeholder': {
-                                color: 'text.secondary',
-                                opacity: 1
-                              }
-                            }
-                          }}
+                        <AmountInput
+                          value={newAsset.amount}
+                          onChange={(value) => setNewAsset(prev => ({ ...prev, amount: value }))}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <Tooltip
-                          open={Boolean(useLivePrices && collateralPriceError && newAsset.name)}
-                          title="Couldn't fetch price for this asset. Please enter it manually."
-                          placement="top"
-                          arrow
-                          componentsProps={{
-                            tooltip: {
-                              sx: {
-                                bgcolor: 'background.paper',
-                                boxShadow: (theme) => theme.shadows[2],
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                borderRadius: 1,
-                                color: 'error.main',
-                                p: 1,
-                                '& .MuiTooltip-arrow': {
-                                  color: 'background.paper',
-                                  '&::before': {
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                  }
-                                },
-                              }
-                            }
-                          }}
-                        >
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="number"
-                            label="Price ($)"
-                            placeholder="0.00"
-                            value={newAsset.price || ''}
-                            onChange={(e) => setNewAsset({ 
-                              ...newAsset, 
-                              price: parseFloat(e.target.value) || 0 
-                            })}
-                            InputProps={{
-                              endAdornment: useLivePrices && isLoadingCollateralPrice && (
-                                <CircularProgress size={20} />
-                              )
-                            }}
-                            error={Boolean(collateralPriceError)}
-                            disabled={useLivePrices}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: '40px',
-                                '& fieldset': {
-                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'divider'
-                                },
-                                '&:hover fieldset': {
-                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'primary.main'
-                                },
-                                '&.Mui-focused fieldset': {
-                                  borderColor: useLivePrices && collateralPriceError ? 'error.main' : 'primary.main'
-                                },
-                                '& input::placeholder': {
-                                  color: 'text.secondary',
-                                  opacity: 1
-                                }
-                              },
-                              '& .MuiInputLabel-root': {
-                                color: useLivePrices && collateralPriceError ? 'error.main' : 'text.secondary'
-                              },
-                              opacity: useLivePrices ? 0.7 : 1
-                            }}
-                          />
-                        </Tooltip>
+                        <PriceInput
+                          value={newAsset.price}
+                          onChange={(value) => setNewAsset(prev => ({ ...prev, price: value }))}
+                          useLivePrices={useLivePrices}
+                          isLoading={isLoadingCollateralPrice}
+                          hasError={Boolean(collateralPriceError)}
+                          assetName={newAsset.name}
+                          disabled={useLivePrices}
+                        />
                       </Grid>
                     </Grid>
                     <Button
@@ -1465,145 +1277,32 @@ function App() {
                     </Typography>
                     <Grid container spacing={3}>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Asset"
+                        <AssetInput
                           value={borrow.name}
-                          onChange={(e) => {
-                            setBorrow(prev => ({
-                              ...prev,
-                              name: e.target.value.toUpperCase(),
-                              price: 0,
-                              amount: 0
-                            }));
-                          }}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px',
-                              '& fieldset': {
-                                borderColor: 'divider',
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '& input::placeholder': {
-                                color: 'text.secondary',
-                                opacity: 1
-                              }
-                            }
-                          }}
+                          onChange={(value) => setBorrow(prev => ({ 
+                            ...prev, 
+                            name: value,
+                            price: 0,
+                            amount: 0
+                          }))}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Amount"
-                          value={borrow.amount || ''}
-                          onChange={(e) => {
-                            const newValue = parseFloat(e.target.value);
-                            const maxAmount = remainingBorrowPower / (borrow.price || 1);
-                            setBorrow({ 
-                              ...borrow, 
-                              amount: Math.min(newValue, maxAmount)
-                            });
-                          }}
-                          inputProps={{
-                            min: 0,
-                            max: remainingBorrowPower / (borrow.price || 1),
-                            step: 0.0001
-                          }}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '40px',
-                              '& fieldset': {
-                                borderColor: 'divider',
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                              '& input::placeholder': {
-                                color: 'text.secondary',
-                                opacity: 1
-                              }
-                            }
-                          }}
+                        <AmountInput
+                          value={borrow.amount}
+                          onChange={(value) => setBorrow(prev => ({ ...prev, amount: value }))}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <Tooltip
-                          open={Boolean(useLivePrices && priceError && borrow.name)}
-                          title="Couldn't fetch price for this asset. Please enter it manually."
-                          placement="top"
-                          arrow
-                          componentsProps={{
-                            tooltip: {
-                              sx: {
-                                bgcolor: 'background.paper',
-                                boxShadow: (theme) => theme.shadows[2],
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                borderRadius: 1,
-                                color: 'error.main',
-                                p: 1,
-                                '& .MuiTooltip-arrow': {
-                                  color: 'background.paper',
-                                  '&::before': {
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                  }
-                                },
-                              }
-                            }
-                          }}
-                        >
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="number"
-                            label="Price ($)"
-                            placeholder="0.00"
-                            value={borrow.price || ''}
-                            onChange={(e) => setBorrow({ ...borrow, price: parseFloat(e.target.value) || 0 })}
-                            InputProps={{
-                              endAdornment: useLivePrices && isLoadingPrice && (
-                                <CircularProgress size={20} />
-                              )
-                            }}
-                            error={Boolean(priceError)}
-                            disabled={useLivePrices}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: '40px',
-                                '& fieldset': {
-                                  borderColor: useLivePrices && priceError ? 'error.main' : 'divider'
-                                },
-                                '&:hover fieldset': {
-                                  borderColor: useLivePrices && priceError ? 'error.main' : 'primary.main'
-                                },
-                                '&.Mui-focused fieldset': {
-                                  borderColor: useLivePrices && priceError ? 'error.main' : 'primary.main'
-                                },
-                                '& input::placeholder': {
-                                  color: 'text.secondary',
-                                  opacity: 1
-                                }
-                              },
-                              '& .MuiInputLabel-root': {
-                                color: useLivePrices && priceError ? 'error.main' : 'text.secondary'
-                              },
-                              opacity: useLivePrices ? 0.7 : 1
-                            }}
-                          />
-                        </Tooltip>
+                        <PriceInput
+                          value={borrow.price}
+                          onChange={(value) => setBorrow(prev => ({ ...prev, price: value }))}
+                          useLivePrices={useLivePrices}
+                          isLoading={isLoadingPrice}
+                          hasError={Boolean(priceError)}
+                          assetName={borrow.name}
+                          disabled={useLivePrices}
+                        />
                       </Grid>
                       <Grid item xs={12}>
                         <Box sx={{ px: 2, mt: 2 }}>
@@ -2532,7 +2231,7 @@ function App() {
                                     <Tooltip 
                                       title={
                                         asset.amount > 0 
-                                          ? "Double-click to decrease amount" 
+                                          ? "Click to edit amount" 
                                           : "Amount cannot be decreased further"
                                       }
                                       placement="top"
@@ -2999,9 +2698,9 @@ function App() {
               variant="contained"
               onClick={handleSaveChanges}
               sx={{
-                bgcolor: editingItem?.type === 'collateral' ? 'success.main' : 'error.main',
+                bgcolor: editingItem?.type === 'collateral' ? 'success.main' : 'success.main',
                 '&:hover': {
-                  bgcolor: editingItem?.type === 'collateral' ? 'success.dark' : 'error.dark',
+                  bgcolor: editingItem?.type === 'collateral' ? 'success.dark' : 'success.dark',
                 }
               }}
             >
